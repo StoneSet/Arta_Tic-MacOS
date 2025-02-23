@@ -2,7 +2,6 @@
 #
 # NOTE: The Tic's control mode must be "Serial / I2C / USB".
 
-import subprocess  # allows you to call another program, i.e. ticcmd
 import sys
 import configparser
 import logging
@@ -22,9 +21,28 @@ class Mode(Enum):
 
 
 # Call ticcmd with the arguments passed to this function
-def ticcmd(*args):
-    return subprocess.check_output(['ticcmd'] + list(args))
+import socket
 
+def ticcmd(*args):
+    command_str = " ".join(args)
+    HOST = '127.0.0.1'
+    PORT = 65432
+
+    print(f"[CLIENT] Trying to connect to {HOST}:{PORT} with command: {command_str}")
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST, PORT))
+            s.sendall(command_str)
+            response = s.recv(4096)
+            print(f"✅ [CLIENT] Response from server:\n{response}")
+            return response
+    except ConnectionRefusedError:
+        print("❌ [CLIENT] ERROR: Unable to connect to the ticcmd server. Is it running?")
+        return "ERROR"
+    except socket.error as err:
+        print(f"❌ [CLIENT] ERROR: Socket error: {err}")
+        return "ERROR"
 
 # Run the ticcmd commands as given in the config file under
 # RESET or ANGLE respectively
@@ -42,7 +60,7 @@ def run(commands, mode, steps, delay):
         # Only actually move in MOVE mode
         if mode == Mode.MOVE:
             # execute the ticcmd and print whatever it returns.
-            print_and_log(ticcmd(*argument_list).decode('UTF-8'))
+            print_and_log(ticcmd(*argument_list))
 
         # Wait some time to give the tic time to process and execute commands
         time.sleep(delay)
